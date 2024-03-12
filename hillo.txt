@@ -1,1 +1,2223 @@
-h
+To represent the best practices and enhance the readability, maintainability, and efficiency of the Odoo model ContactUs, here are some improvements and best practices that can be applied:
+
+Use Constants for Field Definitions: Define constants for field values such as selection options to avoid hardcoding. This enhances code readability and makes it easier to manage and update values in the future.
+
+Use fields.Datetime.now for created_at: Instead of using fields.Date for created_at, use fields.Datetime to capture both date and time. This ensures more accurate tracking of when the record was created.
+
+Consistent Naming Convention: Follow a consistent naming convention for fields and methods. Use underscores to separate words in field and method names (contact_by instead of contact_by, contact_detail_value instead of contact_detail_value, etc.).
+
+Override _default_name for Default Name Generation: Instead of using a lambda function for the default value of the name field, override the _default_name method to generate a unique name using the sequence.
+
+Explicitly Specify Dependencies: Explicitly specify field dependencies using depends attribute to ensure proper field recomputation.
+
+Use Decorators for Model Methods: Use decorators such as @api.model for model methods to indicate their type and purpose clearly.
+
+Document Method Purpose: Provide method docstrings to explain the purpose and functionality of overridden methods.
+
+Here's the modified version of the ContactUs model incorporating these improvements:
+
+python
+Copy code
+from odoo import _, api, fields, models
+
+class ContactUs(models.Model):
+    _name = "contact.us"
+    _description = "Contact Us"
+
+    STATE_SELECTION = [
+        ("new", "New"),
+        ("read", "Read"),
+        ("cancel", "Cancel"),
+        ("done", "Done"),
+    ]
+
+    email = fields.Char(required=True)
+    subject = fields.Char()
+    message = fields.Text()
+    created_at = fields.Datetime(default=fields.Datetime.now)
+    admin_note = fields.Text()
+    state = fields.Selection(STATE_SELECTION, default="new")
+    name = fields.Char(default=lambda self: self._default_name(), readonly=True)
+    contact_by = fields.Char(default="Contact By Message", readonly=True)
+
+    @api.model
+    def create(self, vals):
+        if vals.get("name") == _("New"):
+            vals["name"] = self.env["ir.sequence"].next_by_code("contact.us") or _("New")
+        return super(ContactUs, self).create(vals)
+
+    def _default_name(self):
+        sequence = self.env.ref("your_module_name.contact_us_sequence")
+        return sequence.next_by_id()
+
+    @api.depends("state")
+    def _compute_some_field(self):
+        # Compute field logic based on state
+        pass
+In this revised version, we have addressed the mentioned best practices and made the code more robust, maintainable, and adherent to Odoo's coding standards.
+
+User
+_compute_some_field logig add 
+ChatGPT
+To add logic for the _compute_some_field method, let's assume that this method computes a value based on the state field of the ContactUs model. Here's an example of how you can implement it:
+
+python
+Copy code
+from odoo import _, api, fields, models
+
+class ContactUs(models.Model):
+    _name = "contact.us"
+    _description = "Contact Us"
+
+    STATE_SELECTION = [
+        ("new", "New"),
+        ("read", "Read"),
+        ("cancel", "Cancel"),
+        ("done", "Done"),
+    ]
+
+    email = fields.Char(required=True)
+    subject = fields.Char()
+    message = fields.Text()
+    created_at = fields.Datetime(default=fields.Datetime.now)
+    admin_note = fields.Text()
+    state = fields.Selection(STATE_SELECTION, default="new")
+    name = fields.Char(default=lambda self: self._default_name(), readonly=True)
+    contact_by = fields.Char(default="Contact By Message", readonly=True)
+    computed_field = fields.Char(compute="_compute_some_field", store=True)
+
+    @api.model
+    def create(self, vals):
+        if vals.get("name") == _("New"):
+            vals["name"] = self.env["ir.sequence"].next_by_code("contact.us") or _("New")
+        return super(ContactUs, self).create(vals)
+
+    def _default_name(self):
+        sequence = self.env.ref("your_module_name.contact_us_sequence")
+        return sequence.next_by_id()
+
+    @api.depends("state")
+    def _compute_some_field(self):
+        for record in self:
+            if record.state == "new":
+                record.computed_field = "New State Logic"
+            elif record.state == "read":
+                record.computed_field = "Read State Logic"
+            elif record.state == "cancel":
+                record.computed_field = "Cancel State Logic"
+            elif record.state == "done":
+                record.computed_field = "Done State Logic"
+            else:
+                record.computed_field = "Unknown State"
+In this example:
+
+We added a new field computed_field of type Char. This field will be computed based on the logic inside the _compute_some_field method.
+Inside the _compute_some_field method, we iterate over each record in the ContactUs model and set the value of computed_field based on the value of the state field.
+Depending on the value of state, we set different strings representing the logic for each state. You should replace these with your actual logic based on your business requirements.
+We also added the store=True attribute to the computed_field field to store the computed value in the database. This will allow you to search and filter records based on this field efficiently. However, if the logic is complex and not suitable for database storage, you can omit store=True.
+User
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+
+class CategoryDetails(models.Model):
+    _name = "category.detail"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _description = "Category Detail"
+
+    category_name = fields.Char(
+        required=True,
+    )
+    image = fields.Image()
+    create_at = fields.Date(
+        default=fields.Datetime.now,
+        tracking=True,
+    )
+    course_count = fields.Integer(compute="_compute_course_count")
+    state = fields.Selection(
+        [
+            ("draft", "Draft"),
+            ("in_process", "In Process"),
+            ("cancle", "Cancle"),
+            ("done", "Done"),
+        ],
+    )
+    name = fields.Char(
+        required=True,
+        readonly=True,
+        default=lambda self: _("New"),
+    )
+
+    def _compute_course_count(self):
+        """Count Number Of Course With Same Category."""
+        for category_deatils in self:
+            course_count = self.env["course.detail"].search_count(
+                [("category_id", "=", category_deatils.id)]
+            )  # Use OF Search Conut ORM Method Count Course
+            category_deatils.course_count = course_count
+
+    def action_open_course(self):
+        """Open form View,tree View Using course_count Method."""
+        action = {
+            "name": _("Course"),
+            "type": "ir.actions.act_window",
+            "res_model": "course.detail",
+            "target": "current",
+            "view_mode": "tree,form",
+            "domain": [("category_id", "=", self.id)],
+        }
+        if self.course_count == 1:
+            action["res_id"] = int(
+                self.env["course.detail"].search(
+                    [("category_id", "=", self.id)]
+                )  # Use OF Search ORM Method
+            )
+            action["view_mode"] = "form"
+        return action
+
+    # Condition check For category Name must be Unique
+    _sql_constraints = [
+        ("category_unique", "unique(name)", "Category Name must be unique.")
+    ]
+
+    @api.model
+    def create(self, category_detail_value):
+        """Generate Sequence number using ir.sequence object"""
+        if category_detail_value.get("name", _("New")) == _("New"):
+            category_detail_value["name"] = self.env["ir.sequence"].next_by_code(
+                "category.detail"
+            ) or _("New")
+
+        # get len of user Entred Category
+        length_category_name = len(category_detail_value.get("category_name"))
+        check_length = int(
+            self.env["ir.config_parameter"].get_param("allowed_category")
+        )
+        if length_category_name <= check_length:
+            raise ValidationError(
+                _(
+                    "You cannot Add an Category Because Maximum length must Be : ",
+                    check_length,
+                )
+            )
+
+        return super(CategoryDetails, self).create(category_detail_value)
+
+    def write(self, category_detail_value):
+        """Category Name First Leter Can be Capital"""
+        if category_detail_value.get("category_name"):
+            category_detail_value["name"] = category_detail_value["name"].capitalize()
+        return super(CategoryDetails, self).write(category_detail_value)
+
+    def name_get(self):
+        """Using name_get method pass category name and"""
+        result = []
+        for category_detail in self:
+            result.append(
+                (
+                    category_detail.id,
+                    "%s, %s" % (category_detail.name, category_detail.category_name),
+                )
+            )
+        return result
+
+    @api.model
+    def _name_search(
+        self, name, argument=None, operator="ilike", limit=100, name_get_uid=None
+    ):
+        """Pass Multipal fields Of Search"""
+        argument = argument or []
+        domain = []
+        if name:
+            domain = [
+                "|",
+                ("category_name", operator, name),
+                ("name", operator, name),
+            ]
+        return self._search(
+            domain + argument, limit=limit, access_rights_uid=name_get_uid
+        )
+
+    def unlink(self):
+        """In Using Unlink ORM Method Condtion Check for state is Draft And Cancel
+        before Delete Record"""
+        for cateory_details in self:
+            if cateory_details.course_count > 0:
+                raise ValidationError(
+                    _(
+                        "You Have A not Delete This Category Because Of They Have",
+                        "a Allready Have A Course",
+                    )
+                )
+
+        return super(CategoryDetails, self).unlink()
+
+    def action_rule_category(self):
+        """This Method Can use Of Automated Action When Create Category"""
+        if self.state not in ("cancle", "draft"):
+            raise ValidationError(
+                _("You cannot delete an Category which is not in draft or cancelled. ")
+            )
+        else:
+            self.state = "draft"
+            return super(CategoryDetails, self).write(self.state)
+ChatGPT
+Your Odoo model CategoryDetails contains various methods and fields to manage category details. Here's an overview of what each part of the code does:
+
+Model Definition and Inheritance: Defines a new Odoo model named CategoryDetails and inherits the mail.thread and mail.activity.mixin mixins. This allows the model to be threaded and tracked for activities like emails.
+
+Fields Definition: Defines various fields such as category_name, image, create_at, course_count, state, and name to store category details.
+
+Computed Field: Computes the number of courses associated with each category using the _compute_course_count method.
+
+Action Method: Defines the action_open_course method to open the courses associated with the category.
+
+Constraints: Defines a SQL constraint to ensure the uniqueness of the name field.
+
+Create and Write Methods: Overrides the create and write methods to add custom logic for generating sequence numbers, checking the length of the category name, and capitalizing the first letter of the category name.
+
+Name Get Method: Formats the name of the category using the name_get method.
+
+Name Search Method: Implements custom search logic to search based on multiple fields (category_name and name).
+
+Unlink Method: Overrides the unlink method to prevent deletion of categories with associated courses.
+
+Action Rule Method: Defines the action_rule_category method, which is used for automated actions when creating a category.
+
+Overall, this code provides comprehensive functionality for managing category details in Odoo, including validation, formatting, and actions associated with category records. It follows best practices such as using computed fields, constraints, and ORM methods to ensure data integrity and consistency. However, you may need to customize it further based on your specific business requirements.
+
+User
+pleass add bettar way and add more funcsanlity
+ChatGPT
+To enhance the CategoryDetails model and improve its functionality, we can add some additional features and refactor the code for better readability and maintainability. Below are some improvements and additional functionalities:
+
+Use of @api.depends for Computed Fields: Use @api.depends decorator to specify dependencies for computed fields instead of iterating over records manually.
+
+Use of inverse Attribute: Utilize the inverse attribute for the computed fields to make them writable.
+
+Better Error Handling: Improve error messages and error handling to provide more informative feedback to users.
+
+Improved Search Functionality: Enhance the search functionality to support more flexible and intuitive searching.
+
+Enhanced Action Methods: Enhance action methods to handle additional use cases and provide better user experience.
+
+Additional Constraints: Add constraints to ensure data integrity and enforce business rules.
+
+Here's the modified version of the CategoryDetails model with these improvements:
+
+python
+Copy code
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+class CategoryDetails(models.Model):
+    _name = "category.detail"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _description = "Category Detail"
+
+    category_name = fields.Char(required=True)
+    image = fields.Image()
+    create_at = fields.Date(default=fields.Datetime.now, tracking=True)
+    course_count = fields.Integer(compute="_compute_course_count", store=True)
+    state = fields.Selection([
+        ("draft", "Draft"),
+        ("in_process", "In Process"),
+        ("cancel", "Cancel"),
+        ("done", "Done"),
+    ], default="draft")
+    name = fields.Char(required=True, readonly=True, default=lambda self: _("New"))
+
+    @api.depends("category_name")
+    def _compute_course_count(self):
+        """Count Number Of Course With Same Category."""
+        for record in self:
+            record.course_count = self.env["course.detail"].search_count([
+                ("category_id", "=", record.id)
+            ])
+
+    @api.model
+    def create(self, vals):
+        if vals.get("name", _("New")) == _("New"):
+            vals["name"] = self.env["ir.sequence"].next_by_code("category.detail") or _("New")
+
+        if len(vals.get("category_name", "")) > self._context.get("allowed_category_length", 20):
+            raise UserError(_("Category name must be at most %s characters long!") % self._context.get("allowed_category_length"))
+
+        return super(CategoryDetails, self).create(vals)
+
+    def write(self, vals):
+        if "category_name" in vals:
+            vals["name"] = vals["category_name"].capitalize()
+        return super(CategoryDetails, self).write(vals)
+
+    def unlink(self):
+        for category in self:
+            if category.course_count:
+                raise UserError(_("You cannot delete a category that has associated courses!"))
+        return super(CategoryDetails, self).unlink()
+
+    def action_open_course(self):
+        action = {
+            "name": _("Courses"),
+            "type": "ir.actions.act_window",
+            "res_model": "course.detail",
+            "view_mode": "tree,form",
+            "domain": [("category_id", "=", self.id)],
+        }
+        if self.course_count == 1:
+            action["res_id"] = self.env["course.detail"].search([("category_id", "=", self.id)], limit=1).id
+            action["view_mode"] = "form"
+        return action
+
+    def action_rule_category(self):
+        if self.state not in ("cancel", "draft"):
+            raise UserError(_("You cannot change the state of a category that is not in draft or cancelled state!"))
+        else:
+            self.state = "draft"
+            return super(CategoryDetails, self).write({"state": "draft"})
+
+    def name_get(self):
+        return [(category.id, "%s - %s" % (category.name, category.category_name)) for category in self]
+
+    @api.model
+    def _name_search(self, name, args=None, operator="ilike", limit=100, name_get_uid=None):
+        args = args or []
+        domain = ["|", ("category_name", operator, name), ("name", operator, name)]
+        return self.search(domain + args, limit=limit).name_get()
+
+    _sql_constraints = [
+        ("name_unique", "unique(name)", "Category name must be unique!"),
+    ]
+In this enhanced version:
+
+Improved usage of @api.depends for computed fields.
+Use of inverse attribute for computed fields is not required here as they are read-only.
+Better error handling with more descriptive error messages.
+Enhanced search functionality to support searching by category name or name.
+Additional constraints to ensure the uniqueness of category names.
+Various action methods are improved for better functionality and error handling.
+Refactoring and code cleanup for better readability and maintainability.
+These enhancements should provide a more robust and user-friendly experience when managing category details in Odoo. However, you may need to further customize it according to your specific requirements.
+
+User
+using this model give diffrent type of _name_serarch method and write method give me plase
+ChatGPT
+Sure, let's enhance the CategoryDetails model with different implementations of the _name_search method and the write method.
+
+Enhanced _name_search Method:
+Here's an alternate implementation of the _name_search method that prioritizes searching by category name over searching by name. This approach ensures that users can easily find categories by their primary attribute, category_name, while still allowing searching by the name field:
+
+python
+Copy code
+@api.model
+def _name_search(self, name, args=None, operator="ilike", limit=100, name_get_uid=None):
+    args = args or []
+    domain = [
+        ("category_name", operator, name),
+        "|",
+        ("name", operator, name),
+        ("name", operator, name),
+    ]
+    return self.search(domain + args, limit=limit).name_get()
+Enhanced write Method:
+In the write method, let's modify the logic to ensure that the name field is updated only when the category_name field is provided:
+
+python
+Copy code
+def write(self, vals):
+    if "category_name" in vals:
+        vals["name"] = vals["category_name"].capitalize()
+    return super(CategoryDetails, self).write(vals)
+With these enhancements, searching for category details by their names should yield more accurate and relevant results. Additionally, the write method ensures that the name field is updated correctly based on changes to the category_name field.
+
+User
+try to impliment more write method 
+ChatGPT
+Certainly! Let's enhance the write method of the CategoryDetails model to include additional functionality such as updating related records when the category name is changed. We'll also ensure that the category name is always capitalized before saving it. Here's the updated write method:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    def write(self, vals):
+        if "category_name" in vals:
+            vals["category_name"] = vals["category_name"].strip()  # Remove leading and trailing whitespaces
+            vals["name"] = vals["category_name"].capitalize()
+            if "course_ids" not in vals:  # Avoid recursive loop
+                course_ids = self.mapped("course_ids")
+                course_ids.write({"category_name": vals["category_name"]})
+
+        return super(CategoryDetails, self).write(vals)
+In this enhanced version of the write method:
+
+We ensure that the category_name is stripped of leading and trailing whitespaces before processing.
+We capitalize the category_name and assign it to the name field.
+We check if the course_ids field is not modified in the vals dictionary to avoid triggering a recursive loop (assuming course_ids is a One2many or Many2many field that links to another model).
+If course_ids are not modified, we retrieve all related course records using mapped("course_ids") and update their category_name field with the new value.
+This enhanced write method ensures that related records are updated consistently when a category name is changed, and it maintains data integrity throughout the system.
+
+User
+plase try other way
+ChatGPT
+Certainly! Another way to enhance the write method is to add additional validation checks and perform specific actions based on certain conditions. Here's an alternative implementation:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    def write(self, vals):
+        if "category_name" in vals:
+            # Ensure category_name is stripped and capitalized
+            vals["category_name"] = vals["category_name"].strip().capitalize()
+
+            # Check if category name is being changed
+            if any(record.category_name != vals["category_name"] for record in self):
+                # Add additional validation checks if needed
+                # For example, check if the new category_name already exists
+                existing_category = self.search([("category_name", "=", vals["category_name"])])
+                if existing_category:
+                    raise ValidationError("Category name must be unique!")
+
+                # Perform additional actions before or after changing category_name
+                # For example, update related records
+                self._update_related_records(vals["category_name"])
+
+        return super(CategoryDetails, self).write(vals)
+
+    def _update_related_records(self, new_category_name):
+        # Example: Update related records
+        courses = self.env["course.detail"].search([("category_id", "in", self.ids)])
+        courses.write({"category_name": new_category_name})
+In this implementation:
+
+We ensure that the category_name is stripped of leading and trailing whitespaces and capitalized before processing.
+We check if the category_name is being changed for any of the records. If so, we proceed with additional validation checks or actions.
+Inside the if block, you can include any additional validation checks specific to your requirements. Here, we check if the new category_name already exists to ensure uniqueness.
+We call a separate method _update_related_records to handle any additional actions needed when changing the category name. This method can be customized according to your business logic.
+This approach provides flexibility and modularity by separating the concerns of validation and additional actions, making the write method easier to understand and maintain.
+
+User
+try other way of without capitalize 
+ChatGPT
+Certainly! Instead of directly capitalizing the category_name field in the write method, we can define a separate method to handle the capitalization. Here's how you can implement it:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    def write(self, vals):
+        if "category_name" in vals:
+            # Ensure category_name is stripped
+            vals["category_name"] = vals["category_name"].strip()
+
+            # Check if category name is being changed
+            if any(record.category_name != vals["category_name"] for record in self):
+                # Add additional validation checks if needed
+                # For example, check if the new category_name already exists
+                existing_category = self.search([("category_name", "=", vals["category_name"])])
+                if existing_category:
+                    raise ValidationError("Category name must be unique!")
+
+                # Capitalize the category_name
+                vals["category_name"] = self._capitalize_category_name(vals["category_name"])
+
+                # Perform additional actions before or after changing category_name
+                # For example, update related records
+                self._update_related_records(vals["category_name"])
+
+        return super(CategoryDetails, self).write(vals)
+
+    def _capitalize_category_name(self, category_name):
+        # Custom method to capitalize the category_name
+        return category_name.title()
+
+    def _update_related_records(self, new_category_name):
+        # Example: Update related records
+        courses = self.env["course.detail"].search([("category_id", "in", self.ids)])
+        courses.write({"category_name": new_category_name})
+In this implementation:
+
+We strip the category_name of leading and trailing whitespaces to ensure data cleanliness.
+Inside the write method, after performing any additional validation checks, we call the _capitalize_category_name method to capitalize the category_name before assigning it to the vals dictionary.
+The _capitalize_category_name method is defined separately to handle the capitalization logic. Here, we use the title() method, which capitalizes the first letter of each word in the string.
+The rest of the code remains similar to the previous implementation, where we perform any additional actions before or after changing the category_name.
+This approach maintains modularity and readability by separating the capitalization logic into a separate method. It allows for easier customization and maintenance of the code.
+
+User
+plase add name_serarch method in odoo
+ChatGPT
+Certainly! The name_search method in Odoo allows you to customize the search behavior when users search for records by name in the user interface. Here's how you can implement it in your CategoryDetails model:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    @api.model
+    def name_search(self, name, args=None, operator="ilike", limit=100):
+        args = args or []
+        domain = [
+            "|",
+            ("category_name", operator, name),
+            ("name", operator, name),
+        ]
+        records = self.search(domain + args, limit=limit)
+        return records.name_get()
+In this implementation:
+
+We define a name_search method as a class method using the @api.model decorator.
+Inside the method, we construct a domain to search for records where either the category_name or the name field matches the search criteria.
+We perform the search using the constructed domain and any additional arguments passed to the method.
+Finally, we call the name_get method on the search results to return a list of tuples representing the records' display names.
+This name_search method ensures that users can search for records by either the category_name or the name field, providing flexibility and ease of use in the user interface.
+
+User
+try more difernt way without using ilike
+ChatGPT
+Certainly! Here's an alternative implementation of the name_search method without using the ilike operator:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    @api.model
+    def name_search(self, name, args=None, operator="=", limit=100):
+        args = args or []
+        domain = [
+            "|",
+            ("category_name", operator, name),
+            ("name", operator, name),
+        ]
+        records = self.search(domain + args, limit=limit)
+        return records.name_get()
+In this implementation:
+
+We allow customization of the operator used in the search query. By default, it uses the = operator for exact match.
+Users can search for records by either the category_name or the name field using the specified operator.
+The search results are limited to a maximum of limit records.
+Finally, we call the name_get method on the search results to return a list of tuples representing the records' display names.
+This implementation provides more flexibility by allowing users to perform exact matches or other types of matches based on the chosen operator.
+
+User
+action_rule_category pullase add more funcantliy using this model on unlink or write
+ChatGPT
+To add more functionality to the CategoryDetails model's unlink and write methods, we can implement additional actions based on specific conditions. Below, I'll demonstrate how to enhance both methods:
+
+Enhancements to unlink Method:
+We can extend the unlink method to perform additional actions before deleting a record. For instance, we can check if the category has associated courses, prompt the user for confirmation, and then proceed with the deletion if confirmed.
+
+python
+Copy code
+def unlink(self):
+    for category_detail in self:
+        if category_detail.course_count > 0:
+            raise ValidationError("You cannot delete this category because it has associated courses.")
+        # Add any additional checks or actions here before deletion
+        # For example, prompt the user for confirmation
+        confirm = input(f"Are you sure you want to delete category '{category_detail.name}'? (yes/no): ")
+        if confirm.lower() == "yes":
+            # If confirmed, proceed with the deletion
+            super(CategoryDetails, category_detail).unlink()
+        else:
+            # If not confirmed, raise an error or perform any other action as needed
+            raise ValidationError("Deletion cancelled.")
+Enhancements to write Method:
+We can enhance the write method to include more validation checks or trigger additional actions based on specific field changes. For example, we can prevent certain fields from being modified after a record has been marked as done.
+
+python
+Copy code
+def write(self, vals):
+    for category_detail in self:
+        if "state" in vals and category_detail.state == "done":
+            # Prevent modification of fields when the category is in the 'done' state
+            fields_not_allowed = ["category_name", "image"]
+            for field in fields_not_allowed:
+                if field in vals:
+                    raise ValidationError(f"You cannot modify the '{field}' field when the category is done.")
+    return super(CategoryDetails, self).write(vals)
+In these enhancements:
+
+For the unlink method, we added a confirmation prompt before deleting a category and raised an error if the user cancels the deletion.
+For the write method, we prevented certain fields from being modified when the category is in the 'done' state.
+These enhancements provide additional control and validation, ensuring data integrity and preventing accidental deletions or modifications in your Odoo application. Adjust the actions and conditions as per your specific requirements.
+
+User
+add autometed action in this model
+ChatGPT
+To implement an automated action triggered when a record is created or updated in the CategoryDetails model, you can use Odoo's @api.model_create_single and @api.model_write decorators. These decorators allow you to define methods that will be automatically executed upon record creation or update. Here's how you can enhance the CategoryDetails model to include an automated action:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    @api.model_create_single
+    def _auto_action_on_create(self, values):
+        """Automated action triggered on record creation."""
+        # Perform any automated actions upon record creation
+        self.create(values)  # Example: create related records, perform calculations, etc.
+
+    @api.model_write
+    def _auto_action_on_write(self, values):
+        """Automated action triggered on record write."""
+        # Perform any automated actions upon record update
+        for category_detail in self:
+            if "state" in values and category_detail.state == "done":
+                # Example: Send notification, update related records, etc.
+                category_detail.send_notification()
+
+    def send_notification(self):
+        """Example method to send a notification."""
+        # Logic to send a notification (e.g., email, SMS) when a category is marked as done
+        # This method can be customized as per your requirements
+        pass
+In this implementation:
+
+The _auto_action_on_create method is decorated with @api.model_create_single decorator, which means it will be automatically executed when a record of the CategoryDetails model is created.
+Similarly, the _auto_action_on_write method is decorated with @api.model_write decorator, which means it will be automatically executed when a record of the CategoryDetails model is updated.
+Inside the _auto_action_on_write method, we check if the state of the category has changed to "done" and then call the send_notification method as an example of an automated action.
+The send_notification method is an example of an action that can be triggered upon record update. You can customize this method to perform any desired action, such as sending notifications, updating related records, etc.
+This implementation provides a way to automate actions based on record creation or update events in the CategoryDetails model, enhancing the functionality of your Odoo application. Adjust the actions performed in the automated methods according to your specific requirements.
+
+User
+plase add more code or logic
+ChatGPT
+Certainly! Let's enhance the automated actions in the CategoryDetails model by adding some additional logic. We'll extend the example to include sending notifications when a category is marked as "done" and updating related records. Here's the updated implementation:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    @api.model_create_single
+    def _auto_action_on_create(self, values):
+        """Automated action triggered on record creation."""
+        # Perform any automated actions upon record creation
+        self.create(values)  # Example: create related records, perform calculations, etc.
+
+    @api.model_write
+    def _auto_action_on_write(self, values):
+        """Automated action triggered on record write."""
+        for category_detail in self:
+            if "state" in values and category_detail.state == "done":
+                # Example: Send notification and update related records
+                category_detail.send_notification()
+                category_detail.update_related_records()
+
+    def send_notification(self):
+        """Send a notification when a category is marked as done."""
+        # Example logic to send a notification (e.g., email, SMS)
+        # Replace this with your actual notification mechanism
+        notification_message = f"The category '{self.category_name}' has been marked as done."
+        self.env["mail.activity"].create({
+            "activity_type_id": self.env.ref("mail.mail_activity_data_todo").id,
+            "note": notification_message,
+            "res_id": self.id,
+            "res_model_id": self.env.ref("your_module.model_category_detail").id,
+            "date_deadline": fields.Date.today(),
+            "user_id": self._uid,
+        })
+
+    def update_related_records(self):
+        """Example method to update related records."""
+        # Example logic to update related records
+        # Replace this with your actual logic to update related records
+        courses = self.env["course.detail"].search([("category_id", "=", self.id)])
+        for course in courses:
+            course.update({"category_status": "done"})
+In this enhanced implementation:
+
+The send_notification method is responsible for sending a notification when a category is marked as "done". It creates an activity record (mail.activity) to represent the notification.
+The update_related_records method demonstrates updating related records when a category is marked as "done". In this example, we assume there's a related model course.detail, and we update the category_status field of all related courses to "done".
+These enhancements provide more functionality to the automated actions triggered upon record creation or update in the CategoryDetails model. Adjust the logic in these methods according to your specific requirements and the structure of your Odoo application.
+
+User
+add action on create
+ChatGPT
+To add an action upon creating a record in the CategoryDetails model, we can utilize the @api.model_create_single decorator. This decorator is used to automatically execute a method when a record of the specified model is created. Here's how you can implement this:
+
+python
+Copy code
+from odoo.exceptions import ValidationError
+
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    @api.model_create_single
+    def _action_on_create(self, values):
+        """Action triggered upon record creation."""
+        # Perform any action upon record creation
+        # Example: send a notification, create related records, etc.
+        self.send_notification(values)
+
+    def send_notification(self, values):
+        """Send a notification upon record creation."""
+        # Example logic to send a notification (e.g., email, SMS)
+        # Replace this with your actual notification mechanism
+        if values.get("state") == "done":
+            notification_message = f"A new category '{values.get('category_name')}' has been created and marked as done."
+            self.env["mail.activity"].create({
+                "activity_type_id": self.env.ref("mail.mail_activity_data_todo").id,
+                "note": notification_message,
+                "res_id": self.id,
+                "res_model_id": self.env.ref("your_module.model_category_detail").id,
+                "date_deadline": fields.Date.today(),
+                "user_id": self._uid,
+            })
+In this implementation:
+
+We define a method _action_on_create and decorate it with @api.model_create_single. This method will be automatically executed when a record of the CategoryDetails model is created.
+Inside the _action_on_create method, we call the send_notification method and pass the values dictionary containing the data of the created record.
+The send_notification method is responsible for sending a notification upon record creation. In this example, we check if the created record is marked as "done" and create an activity record (mail.activity) to represent the notification.
+Adjust the logic in the send_notification method according to your specific requirements and the structure of your Odoo application.
+
+User
+no add diffrent 
+ChatGPT
+If you're looking to add a different action upon creating a record in the CategoryDetails model, here's an example where we'll update a related model upon creation:
+
+python
+Copy code
+class CategoryDetails(models.Model):
+    # Previous model definition remains unchanged...
+
+    @api.model_create_single
+    def _action_on_create(self, values):
+        """Action triggered upon record creation."""
+        # Perform any action upon record creation
+        # Example: update a related model
+        self.update_related_model(values)
+
+    def update_related_model(self, values):
+        """Update a related model upon record creation."""
+        # Example logic to update a related model
+        # Replace this with your actual logic to update related records
+        if values.get("state") == "done":
+            related_records = self.env["related.model"].search([("category_id", "=", self.id)])
+            for record in related_records:
+                record.write({"field_to_update": values.get("value_to_update")})
+In this example:
+
+We define a method _action_on_create and decorate it with @api.model_create_single. This method will be automatically executed when a record of the CategoryDetails model is created.
+Inside the _action_on_create method, we call the update_related_model method and pass the values dictionary containing the data of the created record.
+The update_related_model method is responsible for updating a related model upon record creation. In this example, we check if the created record is marked as "done" and then update the related model (related.model) by searching for related records based on a condition and updating their fields accordingly.
+Adjust the logic in the update_related_model method according to your specific requirements and the structure of your Odoo application.
+
+User
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+
+class CourseDetails(models.Model):
+    _name = "course.detail"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _description = "Course Detail"
+
+    name = fields.Char(
+        required=True,
+        readonly=True,
+        default=lambda self: _("New"),
+    )
+    category_id = fields.Many2one("category.detail", ondelete="cascade", required=True)
+
+    instructor_id = fields.Many2one(
+        "instructor.detail", ondelete="cascade", required=True
+    )  # instructor Id Given Reference From instructor Detail Model
+    course_name = fields.Char(required=True)
+    image = fields.Image()
+    video = fields.Binary()
+    course_upload_date = fields.Date(default=fields.Datetime.now)
+    description = fields.Html()
+    deadline = fields.Char()
+
+    level = fields.Selection(
+        [
+            ("beginner", "Beginner"),
+            ("intermediate", "Intermediate"),
+        ],
+        required=True,
+    )
+
+    language = fields.Selection(
+        [
+            ("english", "English"),
+        ],
+        required=True,
+    )
+
+    state = fields.Selection(
+        [
+            ("draft", "Draft"),
+            ("in_process", "In Process"),
+            ("cancle", "cancle"),
+            ("done", "Done"),
+        ],
+        default="draft",
+        required=True,
+    )
+    price = fields.Float()
+    image = fields.Image()
+
+    video_ids = fields.One2many("video.detail", "course_id")
+    video_count = fields.Integer(compute="_compute_video_count")
+
+    # All Action Method wworking For Mode Of Course
+    def action_in_process(self):
+        for record in self:
+            record.state = "in_process"
+
+    def action_draft(self):
+        for record in self:
+            record.state = "draft"
+
+    def action_done(self):
+        for record in self:
+            record.state = "done"
+
+    def action_cancle(self):
+        for record in self:
+            record.state = "cancle"
+
+    def _compute_video_count(self):
+        """Count Number Of Video With Same Course."""
+        for course_details in self:
+            video_count = self.env["video.detail"].search_count(
+                [("course_id", "=", course_details.id)]
+            )  # Use OF Search Conut ORM Method
+            course_details.video_count = video_count
+
+    def action_open_video_details(self):
+        """Open form View,tree View Using course_count Method."""
+        if self.video_count == 1:  # if video Count Is 1 then Open Form View
+            return {
+                "type": "ir.actions.act_window",
+                "name": "Video",
+                "res_model": "video.detail",
+                "res_id": int(
+                    self.env["video.detail"].search([("course_id", "=", self.id)])
+                ),  # Use OF Search ORM Method
+                "domain": [("course_id", "=", self.id)],
+                "view_mode": "form",
+                "view_type": "form",
+                "target": "current",
+            }
+        return {
+            "name": "Course",
+            "res_model": "video.detail",
+            "view_mode": "list,form",
+            "context": {},
+            "domain": [("course_id", "=", self.id)],
+            "target": "current",
+            "type": "ir.actions.act_window",
+        }
+
+    _sql_constraints = [
+        ("name_uniqe", "unique(name)", "Course Name must be unique.")
+    ]  # Check ondition for Craete Unique Course Name
+
+    @api.model
+    def create(self, value):
+        """Generate Sequence number using ir.sequence object"""
+        if value.get("name", _("New")) == _("New"):
+            value["name"] = self.env["ir.sequence"].next_by_code("course.detail") or _(
+                "New"
+            )
+        length_name = len(value.get("course_name"))
+        check_length = int(self.env["ir.config_parameter"].get_param("allowed_course"))
+        if length_name <= check_length:
+            raise ValidationError(
+                _(
+                    "You Cannot Add an Category Because Maximum length must Be : ",
+                    check_length,
+                )
+            )
+        return super(CourseDetails, self).create(value)
+
+    def name_get(self):
+        """Pass Course name and name and first_name in List"""
+        result = []
+        for course_details in self:
+            result.append(
+                (
+                    course_details.id,
+                    "%s, %s , %s %s"
+                    % (
+                        course_details.name,
+                        course_details.category_id.name,
+                        course_details.instructor_id.first_name,
+                        course_details.instructor_id.last_name,
+                    ),
+                )
+            )
+        return result
+
+    @api.model
+    def _name_search(
+        self, name, argument=None, operator="ilike", limit=100, name_get_uid=None
+    ):
+        """Method use for Serching  Multipal Field name Of Other Object"""
+        argument = argument or []
+        domain = []
+        if name:
+            domain = [
+                "|",
+                "|",
+                ("name", operator, name),
+                ("category_id", operator, name),
+                ("instructor_id", operator, name),
+            ]
+        return self._search(
+            domain + argument, limit=limit, access_rights_uid=name_get_uid
+        )
+
+    def write(self, course_detail_value):
+        """Write Orm method Course Name First Leter Can be capitalize"""
+        if course_detail_value.get("name"):
+            course_detail_value["name"] = course_detail_value["name"].capitalize()
+        return super(CourseDetails, self).write(course_detail_value)
+
+    def unlink(self):
+        """Method Condtion Check for state is not in  Draft And Cancel then Delete"""
+        for course_details in self:
+            if course_details.state not in ("cancle", "draft"):
+                raise ValidationError(
+                    _(
+                        "You cannot delete an Category which is not in draft or cancelled. "
+                    )
+                )
+        return super(CourseDetails, self).unlink()
+
+    def action_rule_validate_create(self):
+        """Automated Action for Validate Create Course"""
+        raise ValidationError(_("You Can Not directly Add In Actepted Or Cancle state"))
+ add best way and change a logic if need of this model snd write code
+ChatGPT
+To enhance the functionality of the CourseDetails model, I'll make several improvements and add additional features. Here's the updated code:
+
+python
+Copy code
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+
+class CourseDetails(models.Model):
+    _name = "course.detail"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _description = "Course Detail"
+
+    name = fields.Char(
+        required=True,
+        readonly=True,
+        default=lambda self: _("New"),
+    )
+    category_id = fields.Many2one("category.detail", ondelete="cascade", required=True)
+    instructor_id = fields.Many2one("instructor.detail", ondelete="cascade", required=True)
+    course_name = fields.Char(required=True)
+    image = fields.Image()
+    video = fields.Binary()
+    course_upload_date = fields.Date(default=fields.Datetime.now)
+    description = fields.Html()
+    deadline = fields.Char()
+    level = fields.Selection(
+        [("beginner", "Beginner"), ("intermediate", "Intermediate")], required=True
+    )
+    language = fields.Selection([("english", "English")], required=True)
+    state = fields.Selection(
+        [("draft", "Draft"), ("in_process", "In Process"), ("cancel", "Cancelled"), ("done", "Done")],
+        default="draft",
+        required=True,
+    )
+    price = fields.Float()
+    video_ids = fields.One2many("video.detail", "course_id")
+    video_count = fields.Integer(compute="_compute_video_count")
+
+    def action_in_process(self):
+        self.write({"state": "in_process"})
+
+    def action_draft(self):
+        self.write({"state": "draft"})
+
+    def action_done(self):
+        self.write({"state": "done"})
+
+    def action_cancel(self):
+        self.write({"state": "cancel"})
+
+    def _compute_video_count(self):
+        for course_details in self:
+            course_details.video_count = self.env["video.detail"].search_count(
+                [("course_id", "=", course_details.id)]
+            )
+
+    def action_open_video_details(self):
+        action = {
+            "name": "Course",
+            "res_model": "video.detail",
+            "domain": [("course_id", "=", self.id)],
+            "view_mode": "list,form",
+            "target": "current",
+            "type": "ir.actions.act_window",
+        }
+        if self.video_count == 1:
+            action.update(
+                {
+                    "res_id": self.video_ids.ids[0],
+                    "view_mode": "form",
+                }
+            )
+        return action
+
+    _sql_constraints = [
+        ("name_unique", "UNIQUE(name)", "Course Name must be unique.")
+    ]
+
+    @api.model
+    def create(self, vals):
+        if vals.get("name", _("New")) == _("New"):
+            vals["name"] = self.env["ir.sequence"].next_by_code("course.detail") or _("New")
+        length_name = len(vals.get("course_name", ""))
+        check_length = int(self.env["ir.config_parameter"].get_param("allowed_course", default=50))
+        if length_name > check_length:
+            raise ValidationError(
+                _("Cannot add course because maximum length must be %s characters." % check_length)
+            )
+        return super(CourseDetails, self).create(vals)
+
+    def name_get(self):
+        result = []
+        for course_details in self:
+            result.append(
+                (
+                    course_details.id,
+                    "%s, %s , %s %s"
+                    % (
+                        course_details.name,
+                        course_details.category_id.name,
+                        course_details.instructor_id.first_name,
+                        course_details.instructor_id.last_name,
+                    ),
+                )
+            )
+        return result
+
+    @api.model
+    def _name_search(self, name, args=None, operator="ilike", limit=100, name_get_uid=None):
+        args = args or []
+        domain = ["|", "|", ("name", operator, name), ("category_id.name", operator, name), ("instructor_id.name", operator, name)]
+        return self._search(domain + args, limit=limit, access_rights_uid=name_get_uid)
+
+    def write(self, vals):
+        if vals.get("name"):
+            vals["name"] = vals["name"].capitalize()
+        return super(CourseDetails, self).write(vals)
+
+    def unlink(self):
+        for course_details in self:
+            if course_details.state not in ("cancel", "draft"):
+                raise ValidationError(
+                    _("Cannot delete a course which is not in draft or cancelled state.")
+                )
+        return super(CourseDetails, self).unlink()
+
+    def action_rule_validate_create(self):
+        raise ValidationError(_("You cannot directly accept or cancel a course."))
+
+    @api.model
+    def _action_on_create(self, vals):
+        # Example: send a notification, create related records, etc.
+        self.update_related_model(vals)
+
+    def update_related_model(self, vals):
+        if vals.get("state") == "done":
+            related_records = self.env["related.model"].search([("course_id", "=", self.id)])
+            related_records.write({"field_to_update": vals.get("value_to_update")})
+Here's a summary of the changes and additions made:
+
+Added the state "cancel" for courses that are cancelled.
+Updated action methods (action_in_process, action_draft, action_done, `action_cancel
+User
+
+add defrent name_serch orm method of course
+ChatGPT
+To implement a custom name search method for the CourseDetails model without using ilike operator, you can create a method that searches for the provided name in multiple fields using specific operators. Here's how you can do it:
+
+python
+Copy code
+@api.model
+def _name_search(self, name, args=None, operator="=", limit=100, name_get_uid=None):
+    args = args or []
+    domain = ["|", "|", "|", ("name", operator, name), ("course_name", operator, name), ("category_id.name", operator, name), ("instructor_id.name", operator, name)]
+    return self._search(domain + args, limit=limit, access_rights_uid=name_get_uid)
+In this custom _name_search method:
+
+We define a domain with OR conditions to search for the provided name in the name, course_name, category_id.name, and instructor_id.name fields.
+The operator parameter specifies the comparison operator to be used in the search. By default, it uses the = operator, but you can customize it as needed.
+The method performs the search using the _search method with the constructed domain.
+This method allows for a more specific search approach and avoids using the ilike operator for case-insensitive matching. You can call this method when performing a name search operation on the CourseDetails model.
+
+
+2 / 2
+
+User
+plase write diffrent way of using field and add more name_serch method
+ChatGPT
+Certainly! Here's an alternative implementation of the _name_search method using a different set of fields and operators:
+
+python
+Copy code
+@api.model
+def _name_search(self, name, args=None, operator="=", limit=100, name_get_uid=None):
+    args = args or []
+    domain = []
+    
+    # Search in 'name', 'course_name', and 'category_name' fields using '=' operator
+    domain += ["|", "|", "|", ("name", operator, name), ("course_name", operator, name), ("category_id.name", operator, name)]
+    
+    # Search in 'name', 'course_name', and 'category_name' fields using 'like' operator
+    domain += ["|", "|", "|", ("name", "like", name), ("course_name", "like", name), ("category_id.name", "like", name)]
+    
+    # Search in 'name' and 'course_name' fields using 'ilike' operator (case-insensitive)
+    domain += ["|", ("name", "ilike", name), ("course_name", "ilike", name)]
+    
+    return self._search(domain + args, limit=limit, access_rights_uid=name_get_uid)
+In this version:
+
+We include multiple conditions in the domain, each using different operators such as '=', 'like', and 'ilike'.
+The search covers fields like 'name', 'course_name', and 'category_name' using various operators to provide different search capabilities.
+By combining multiple conditions with different operators, we allow for a more flexible and comprehensive search functionality.
+This approach offers a wider range of search options to accommodate different user preferences and requirements.
+User
+name_get use
+ChatGPT
+The name_get method is used to customize the display name of records in Odoo. It returns a list of tuples, each containing the record's ID and its corresponding display name. Here's how you can implement name_get in your CourseDetails model:
+
+python
+Copy code
+def name_get(self):
+    """Return the display name of the records."""
+    result = []
+    for course_detail in self:
+        name = "%s - %s (%s)" % (
+            course_detail.name,
+            course_detail.course_name,
+            course_detail.category_id.name,
+        )
+        result.append((course_detail.id, name))
+    return result
+In this implementation:
+
+We iterate through each record of the CourseDetails model.
+We construct a custom display name using fields like name, course_name, and category_id.name.
+The resulting list contains tuples where the first element is the record's ID and the second element is the custom display name.
+This method allows you to present records in a more informative way, incorporating relevant details from related fields.
+You can customize the format of the display name according to your specific requirements, including different fields or additional information as needed.
+
+User
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+
+class CourseOrder(models.Model):
+    _name = "order.detail"
+    _description = "Order Detail"
+
+    state = fields.Selection(
+        [
+            ("new", "New"),
+            ("actepted", "Actepted"),
+            ("cancle", "Cancle"),
+        ],
+        default="new",
+    )
+    first_name = fields.Char(
+        size=16,
+    )
+    last_name = fields.Char(
+        size=16,
+    )
+    is_paid = fields.Boolean(default=False)
+    total = fields.Float(default=0)
+    payment_mode = fields.Char()
+    payment_id = fields.Char()
+    order_id = fields.Char(
+        default=id,
+        readonly=True,
+    )
+    email = fields.Char(required=True)
+    phone = fields.Char()
+    country = fields.Char()
+    state = fields.Char()
+    city = fields.Char()
+    name = fields.Char(
+        required=True,
+        readonly=True,
+        default=lambda self: _("New"),
+    )
+    admin_note = fields.Text()
+
+    @api.constrains("first_name", "last_name")
+    def _validate_name(self):
+        """Check Condition For First Name And Last Name Must Be different."""
+        for order_details in self:
+            if order_details.first_name == order_details.last_name:
+                raise ValidationError(_("First Name and Last Name must be different"))
+
+    _sql_constraints = [
+        ("payment_id_unique", "unique(payment_id)", "Payment id  must be unique.")
+    ]  # Condition Check For Unique Payment Id
+
+    _sql_constraints = [
+        ("order_id_unique", "unique(order_id)", "Order id must be unique.")
+    ]  # Condition Check For Unique Order Id
+
+    @api.model
+    def create(self, value):
+        """Generate Sequence number using ir.sequence object"""
+        if value.get("name", _("New")) == _("New"):
+            value["name"] = self.env["ir.sequence"].next_by_code("order.detail") or _(
+                "New"
+            )
+        return super(CourseOrder, self).create(value)
+
+    def write(self, value):
+        """Write Orm method Admin Note First Leter Can be capitalize"""
+        if "admin_note" in value and value["admin_note"]:
+            value["admin_note"] = "Read By Admin"
+        return super(CourseOrder, self).write(value)
+
+    def name_get(self):
+        """Pass order_id name,first_name and last_name in List"""
+        result = []
+        for order_details in self:
+            result.append(
+                (
+                    order_details.id,
+                    "%s, %s %s"
+                    % (
+                        order_details.order_id,
+                        order_details.first_name,
+                        order_details.last_name,
+                    ),
+                )
+            )
+        return result
+
+    @api.model
+    def _name_search(
+        self, name, argument=None, operator="ilike", limit=100, name_get_uid=None
+    ):
+        """Method use for Serching  Multipal Field name Of Other Object"""
+        argument = argument or []
+        domain = []
+        if name:
+            domain = [
+                "|",
+                "|",
+                "|",
+                "|",
+                "|",
+                ("first_name", operator, name),
+                ("last_name", operator, name),
+                ("payment_mode", operator, name),
+                ("payment_id", operator, name),
+                ("name", operator, name),
+                ("order_id", operator, name),
+            ]
+        return self._search(
+            domain + argument, limit=limit, access_rights_uid=name_get_uid
+        )
+
+    def unlink(self):
+        """Condtion Check for state is Draft And Cancel then Delete"""
+        for order_details in self:
+            if order_details.state not in ("cancle"):
+                raise ValidationError(
+                    _("You cannot delete an Order which is actepted or pending. ")
+                )
+        return super(CourseOrder, self).unlink()
+
+    @api.model
+    def search_read(self, domain=None, fields=None, offset=0, limit=None, order=None):
+        """Check state is Draft and in Process and Cancel"""
+        domain = [
+            "|",
+            "|",
+            ("state", "ilike", "actepted"),
+            ("state", "ilike", "pending"),
+            ("state", "ilike", "cancle"),
+        ]
+        return super(CourseOrder, self).search_read(
+            domain, fields, offset, limit, order
+        )
+
+    def create_invoice(self):
+        """
+        This Method For Create A Invoice
+        """
+        for order_details in self:
+            delivey_invoice = self.env["account.move"].create(
+                [
+                    {
+                        "move_type": "out_invoice",
+                        "invoice_date": fields.Date.context_today(order_details),
+                        "partner_id": self.id,
+                        "amount_total": self.total_price,
+                        "invoice_line_ids": [
+                            (
+                                0,
+                                None,
+                                {
+                                    "product_id": self.id,
+                                    "name": "Edu Skill",
+                                    "quantity": 1,
+                                    "price_unit": order_details.total_price,
+                                    "price_subtotal": order_details.total_price,
+                                },
+                            ),
+                        ],
+                    },
+                ]
+            )
+            delivey_invoice.action_post()
+
+    def visite_compney(self):
+        """This Method Can Use For Url Action"""
+        return {
+            "type": "ir.actions.act_url",
+            "target": "self",
+            "url": "https://bizzappdev.com",
+        }
+
+    def action_rule_validate_create(self):
+        """This Method Can use Of Automated Action When Create Order"""
+        raise ValidationError(_("You Can Not directly Add In Actepted Or Cancle state"))
+add more funcsanality 
+ChatGPT
+To enhance the functionality of the CourseOrder model, let's add some additional features and improvements:
+
+Auto-generate order ID: Instead of using the default id as the order ID, let's generate a custom order ID using an Odoo sequence.
+Compute total price: Add a computed field to calculate the total price based on the items in the order.
+Validate payment: Implement a method to mark the order as paid when payment is confirmed.
+Delivery address: Include fields for the delivery address of the order.
+Refund method: Implement a method to process refunds for canceled orders.
+Here's the updated code with these enhancements:
+
+python
+Copy code
+class CourseOrder(models.Model):
+    _name = "order.detail"
+    _description = "Order Detail"
+
+    state = fields.Selection(
+        [("new", "New"), ("accepted", "Accepted"), ("cancel", "Cancel")],
+        default="new",
+    )
+    # Other fields remain unchanged
+
+    order_id = fields.Char(
+        default=lambda self: self.env["ir.sequence"].next_by_code("order.detail"),
+        readonly=True,
+    )
+    total = fields.Float(compute="_compute_total", store=True)
+
+    # New fields for delivery address
+    street = fields.Char()
+    zip = fields.Char()
+    country_id = fields.Many2one("res.country")
+    state_id = fields.Many2one("res.country.state")
+    city = fields.Char()
+
+    # Computed field to calculate total price
+    @api.depends("total")
+    def _compute_total(self):
+        for order in self:
+            order.total = sum(order.order_line.mapped("price"))
+
+    # Method to mark the order as paid
+    def mark_paid(self):
+        for order in self:
+            order.is_paid = True
+
+    # Method to process refunds for canceled orders
+    def process_refund(self):
+        for order in self:
+            # Logic to process refunds goes here
+            pass
+
+    # Method to create invoice for the order
+    def create_invoice(self):
+        # Logic to create invoice goes here
+        pass
+
+    # Method to validate order creation
+    def action_rule_validate_create(self):
+        if self.state != "new":
+            raise ValidationError(
+                _("You cannot directly add orders in Accepted or Cancel state")
+            )
+
+    # Method to visit company website
+    def visit_company(self):
+        return {
+            "type": "ir.actions.act_url",
+            "target": "self",
+            "url": "https://bizzappdev.com",
+        }
+
+    # Override unlink method to prevent deletion of accepted orders
+    def unlink(self):
+        for order in self:
+            if order.state == "accepted":
+                raise ValidationError(
+                    _("You cannot delete an order that has been accepted.")
+                )
+        return super(CourseOrder, self).unlink()
+
+    # Override write method to capitalize admin note
+    def write(self, vals):
+        if "admin_note" in vals and vals["admin_note"]:
+            vals["admin_note"] = vals["admin_note"].capitalize()
+        return super(CourseOrder, self).write(vals)
+
+    # Additional name_search method
+    @api.model
+    def _name_search(self, name, args=None, operator="ilike", limit=100, name_get_uid=None):
+        domain = [
+            "|",
+            "|",
+            ("first_name", operator, name),
+            ("last_name", operator, name),
+            ("name", operator, name),
+            ("order_id", operator, name),
+        ]
+        if args:
+            args += domain
+        else:
+            args = domain
+        return super(CourseOrder, self)._search(args, limit=limit, access_rights_uid=name_get_uid)
+In this updated code:
+
+We've added a custom order_id field that generates a unique order ID using an Odoo sequence.
+Implemented a computed field total to calculate the total price of the order based on the order lines.
+Added methods for marking orders as paid (mark_paid), processing refunds (process_refund), and creating invoices (create_invoice).
+Modified the action_rule_validate_create method to prevent creating orders directly in the Accepted or Cancel state.
+Implemented a method (visit_company) to visit the company website.
+Updated the unlink method to prevent deletion of accepted orders.
+Enhanced the write method to capitalize the admin note.
+Added an additional name_search method to search for orders by various fields.
+User
+def create_invoice(self):
+        # Logic to create invoice goes here
+        pass add logic and pass course not product
+ChatGPT
+To create an invoice for the order, we need to create an invoice record in Odoo's accounting module. Here's how you can implement the create_invoice method with logic to generate an invoice for the order:
+
+python
+Copy code
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+class CourseOrder(models.Model):
+    # Other fields and methods remain unchanged
+
+    def create_invoice(self):
+        for order in self:
+            if order.state != "accepted":
+                raise UserError(_("Cannot create invoice for orders that are not accepted."))
+
+            if not order.is_paid:
+                raise UserError(_("Cannot create invoice for unpaid orders."))
+
+            # Prepare invoice data
+            invoice_data = {
+                'partner_id': order.partner_id.id,  # Assuming partner_id is a Many2one field to the customer
+                'invoice_date': fields.Date.today(),
+                'invoice_line_ids': [(0, 0, {
+                    'name': order.name,  # Use order name as the invoice line description
+                    'quantity': 1,  # Assuming one unit for each order
+                    'price_unit': order.total,  # Use the total price of the order as the unit price
+                })],
+            }
+
+            # Create invoice
+            invoice = self.env['account.move'].create(invoice_data)
+
+            # Post the invoice
+            invoice.action_post()
+
+            # Update order with invoice details
+            order.invoice_id = invoice.id
+
+            # You may want to add additional logic here, such as sending email notifications
+
+        return True
+Explanation:
+
+The method loops through each order record in self.
+It checks if the order is in the "accepted" state and if it has been paid (is_paid).
+Then it prepares invoice data with the customer (partner_id), invoice date (invoice_date), and invoice line (invoice_line_ids). Here, we use the order name as the description and the total price as the unit price.
+Next, it creates an invoice record (account.move) with the prepared data.
+The action_post() method posts the invoice, making it available for further processing.
+Finally, it updates the order record with the ID of the generated invoice.
+You may need to adjust the fields used in the invoice creation logic based on your specific requirements and your accounting configuration in Odoo.
+
+User
+add course name of invoice 
+ChatGPT
+To include the course name in the invoice line description, you can modify the create_invoice method to fetch the course name associated with each order and add it to the invoice line description. Here's how you can do it:
+
+python
+Copy code
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+class CourseOrder(models.Model):
+    # Other fields and methods remain unchanged
+
+    def create_invoice(self):
+        for order in self:
+            if order.state != "accepted":
+                raise UserError(_("Cannot create invoice for orders that are not accepted."))
+
+            if not order.is_paid:
+                raise UserError(_("Cannot create invoice for unpaid orders."))
+
+            # Fetch course name
+            course_name = order.course_id.course_name if order.course_id else ''
+
+            # Prepare invoice data
+            invoice_data = {
+                'partner_id': order.partner_id.id,  # Assuming partner_id is a Many2one field to the customer
+                'invoice_date': fields.Date.today(),
+                'invoice_line_ids': [(0, 0, {
+                    'name': f"{course_name}: {order.name}",  # Use course name + order name as the invoice line description
+                    'quantity': 1,  # Assuming one unit for each order
+                    'price_unit': order.total,  # Use the total price of the order as the unit price
+                })],
+            }
+
+            # Create invoice
+            invoice = self.env['account.move'].create(invoice_data)
+
+            # Post the invoice
+            invoice.action_post()
+
+            # Update order with invoice details
+            order.invoice_id = invoice.id
+
+            # You may want to add additional logic here, such as sending email notifications
+
+        return True
+In this modified version:
+
+We fetch the course_name associated with each order using order.course_id.course_name if order.course_id is not empty.
+We modify the invoice line description to include the course name along with the order name: f"{course_name}: {order.name}". This will display the course name followed by a colon and then the order name in the invoice line description.
+User
+autometed action in order
+ChatGPT
+To implement an automated action in the Order Detail model, you can use the Odoo's @api.model decorator along with the create method to trigger the action when a new record is created. Here's how you can do it:
+
+python
+Copy code
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+class CourseOrder(models.Model):
+    # Existing fields and methods
+    
+    @api.model
+    def create(self, vals):
+        # Create the order record
+        order = super(CourseOrder, self).create(vals)
+        
+        # Trigger the automated action based on certain conditions
+        if order.total > 1000:  # Example condition, adjust as needed
+            order.action_rule_validate_create()  # Call the automated action method
+        
+        return order
+    
+    def action_rule_validate_create(self):
+        # Your existing logic for the automated action
+        pass
+In this example:
+
+We override the create method of the CourseOrder model using the @api.model decorator.
+Inside the overridden create method, we call the superclass's create method to create the order record.
+After creating the record, we check a certain condition (in this case, if the total amount of the order is greater than 1000) and then call the action_rule_validate_create method if the condition is met.
+The action_rule_validate_create method contains your existing logic for the automated action.
+User
+more automatiod action add 
+ChatGPT
+To add more automated actions in the Order Detail model, you can create additional methods similar to action_rule_validate_create and call them based on different conditions. Here's an example of how you can add another automated action:
+
+python
+Copy code
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+class CourseOrder(models.Model):
+    # Existing fields and methods
+    
+    @api.model
+    def create(self, vals):
+        # Create the order record
+        order = super(CourseOrder, self).create(vals)
+        
+        # Trigger the automated actions based on certain conditions
+        if order.total > 1000:  
+            order.action_rule_validate_create()  # Example automated action based on total amount
+        if order.country == 'USA':
+            order.action_send_usa_discount_coupon()  # Another automated action based on country
+        
+        return order
+    
+    def action_rule_validate_create(self):
+        # Your existing logic for the automated action
+        pass
+    
+    def action_send_usa_discount_coupon(self):
+        # Logic to send a discount coupon to USA customers
+        pass
+In this example:
+
+We add a new method action_send_usa_discount_coupon to the CourseOrder model.
+Inside the overridden create method, we call this method if the condition (in this case, if the country of the order is 'USA') is met.
+The action_send_usa_discount_coupon method contains the logic for sending a discount coupon to customers from the USA.
+You can add as many automated actions as needed by creating additional methods and calling them based on different conditions in the create method or other relevant methods.
+User
+not only create plase add more autometed action re;eted with order
+ChatGPT
+Certainly! Here's an expanded version of the CourseOrder model with more automated actions related to orders:
+
+python
+Copy code
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+class CourseOrder(models.Model):
+    _name = "order.detail"
+    _description = "Order Detail"
+
+    # Existing fields and methods...
+
+    def create_invoice(self):
+        """
+        This Method For Create A Invoice
+        """
+        for order_details in self:
+            # Logic to create invoice
+            invoice_vals = {
+                'partner_id': order_details.id,
+                'invoice_date': fields.Date.today(),
+                'amount_total': order_details.total,
+                'invoice_line_ids': [
+                    (0, 0, {
+                        'name': 'Course: %s' % order_details.course_name,  # Add course name to invoice line
+                        'quantity': 1,
+                        'price_unit': order_details.total,
+                    }),
+                ],
+            }
+            invoice = self.env['account.move'].create(invoice_vals)
+            invoice.action_post()
+
+    def action_send_confirmation_email(self):
+        """Send confirmation email to the customer."""
+        for order_details in self:
+            # Logic to send email
+            # Example: You can use Odoo's email API to send an email to the customer confirming the order.
+            pass
+
+    def action_cancel_order(self):
+        """Cancel the order."""
+        for order_details in self:
+            order_details.state = 'cancle'
+            # Logic to perform actions when an order is cancelled
+
+    def action_validate_order(self):
+        """Validate the order."""
+        for order_details in self:
+            order_details.state = 'actepted'
+            # Logic to perform actions when an order is validated
+
+    def action_auto_validate_order(self):
+        """Automatically validate the order based on certain conditions."""
+        orders_to_validate = self.search([('total', '>', 1000)])  # Example condition: total > 1000
+        orders_to_validate.action_validate_order()
+
+    def action_rule_validate_create(self):
+        """This Method Can use Of Automated Action When Create Order"""
+        if self.total > 1000:  # Example condition: total > 1000
+            self.action_validate_order()
+
+    # Other existing methods...
+In this expanded version:
+
+The create_invoice method is updated to include logic for creating an invoice with the course name added to the invoice line.
+Additional automated actions are added, such as action_send_confirmation_email, action_cancel_order, action_validate_order, and action_auto_validate_order.
+The action_rule_validate_create method is modified to automatically validate an order if its total exceeds a certain threshold (in this case, 1000).
+User
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Config File  -->
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.eduskill</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('settings')]" position="inside">
+                <div
+                    class="app_settings_block"
+                    data-string="Edu Skill"
+                    id="edu_skill"
+                    string="Edu Skill"
+                    data-key="edu_skill"
+                >
+                    <h2>Category : </h2>
+                    <div class="row mt16 o_settings_container" id="edu_skill_setting">
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane" />
+                            <div class="o_setting_right_pane">
+                                <div class="text-muted content-group mt16">
+                                    <h6>Category Length : </h6>
+                                    <field
+                                        name="allowed_category"
+                                        class="text-center oe_inline"
+                                    />
+                                    <span> Minmum</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Course Sattings -->
+                    <h2>Course : </h2>
+                    <div class="row mt16 o_settings_container" id="edu_skill_setting">
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane" />
+                            <div class="o_setting_right_pane">
+                                <div class="text-muted content-group mt16">
+                                    <h6>Course Length : </h6>
+                                    <field
+                                        name="allowed_course"
+                                        class="text-center oe_inline"
+                                    />
+                                    <span> Minmum</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Config Action File -->
+    <record id="edu_skill_config_settings_action" model="ir.actions.act_window">
+        <field name="name">Settings</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field>
+        <field name="context">{'module' : 'edu_skill', 'bin_size': False}</field>
+    </record>
+</odoo>
+
+ChatGPT
+This XML file defines configuration settings for the "Edu Skill" module in Odoo. It includes settings for both categories and courses. Here's a breakdown of the XML:
+
+res_config_settings_view_form: This record defines the view for the configuration settings. It inherits from the base res.config.settings view. Inside the xpath expression targeting the div with the class settings, it inserts a new div with the class app_settings_block. This block contains settings for both categories and courses.
+
+Category Settings: Inside the div with the id edu_skill, it defines settings for categories. It includes a heading "Category" and a field to specify the minimum length of the category name.
+
+Course Settings: Similarly, inside the same div with the id edu_skill, it defines settings for courses. It includes a heading "Course" and a field to specify the minimum length of the course name.
+
+edu_skill_config_settings_action: This record defines the action to open the settings. It specifies the name of the action, the model (res.config.settings), the view mode (form), and the target (inline). The context is set to provide information about the module and disable the bin size.
+
+This XML file is intended to be included in the module's data files and will be loaded when the module is installed or upgraded. It provides a user interface for configuring settings related to categories and courses in the Edu Skill module.
+
+User
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+
+    <!-- Automation Action -->
+    <record id="order_rule_on_create" model="base.automation">
+        <field name="name">Automation rule on create on Order</field>
+        <field name="model_id" ref="model_order_detail" />
+        <field name="state">code</field>
+        <field name="code">model.action_rule_validate_create()</field>
+        <field name="trigger">on_create</field>
+        <field name="active" eval="True" />
+        <field
+            name="filter_domain"
+        >['|',('state', '=', 'actepted'),('state', '=', 'cancle')]</field>
+    </record>
+
+    <!-- Schedule Action -->
+    <record id="ir_cron_scheduler_recurring_action" model="ir.cron">
+       <field name="name">Automatic schedul Invoice Schedule</field>
+       <field name="model_id" ref="model_order_detail" />
+       <field name="state">code</field>
+       <field name="code">model.create_invoice()</field>
+       <field name="user_id" ref="base.user_root" />
+       <field name="interval_number">1</field>
+        <field
+            name="nextcall"
+            eval="(datetime.now() + timedelta(days=10)).strftime('%Y-%m-%d 23:59:59')"
+        />
+       <field name="interval_type">days</field>
+       <field name="numbercall">-1</field>
+    </record>
+
+    <!-- Create a Bill Using Server Action -->
+    <record id="action_create_invoice" model="ir.actions.server">
+        <field name="name">Create Bills</field>
+        <field name="type">ir.actions.server</field>
+        <field name="model_id" ref="model_order_detail" />
+        <field name="binding_model_id" ref="model_order_detail" />
+        <field name="state">code</field>
+        <field name="code">
+            action = record.create_invoice()
+        </field>
+    </record>
+
+    <!-- Order Detail Tree View -->
+    <record id="view_order_tree" model="ir.ui.view">
+        <field name="name">order.detail.tree</field>
+        <field name="model">order.detail</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="first_name" />
+                <field name="last_name" />
+                <field name="total" />
+                <field name="payment_mode" />
+                <field name="state" />
+            </tree>
+        </field>
+    </record>
+
+    <!-- Sequence Number -->
+    <data>
+       <record id="seq_order_details" model="ir.sequence">
+           <field name="name">Course Order</field>
+           <field name="code">order.detail</field>
+           <field name="prefix">CO</field>
+           <field name="padding">5</field>
+           <field name="company_id" eval="False" />
+       </record>
+    </data>
+
+    <!-- Order Detail Form View -->
+    <record id="view_order_detail_form" model="ir.ui.view">
+        <field name="name">order.detail.form</field>
+        <field name="model">order.detail</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <h1>
+                        <field name="name" />
+                    </h1>
+                    <group>
+                        <group>
+                            <field name="first_name" />
+                            <field name="total" />
+                            <field name="payment_id" />
+                            <field name="state" />
+                        </group>
+                        <group>
+                            <field name="last_name" />
+                            <field name="payment_mode" />
+                            <field name="order_id" />
+                            <!-- Invisible Field -->
+                            <field name="is_paid" invisible="1" />
+                        </group>
+                    </group>
+                    <group>
+                        <field name="admin_note" />
+                        <!-- create button for Url Action -->
+                        <button
+                            name="visite_compney"
+                            class="oe_highlight"
+                            type="object"
+                        >Visit Web</button>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Order View -->
+    <record id="action_order_detail" model="ir.actions.act_window">
+        <field name="name">Order</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">order.detail</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No Order Found.. </p>
+        </field>
+    </record>
+
+    <!-- Search view -->
+    <record id="view_order_search" model="ir.ui.view">
+        <field name="name">order.detail.search</field>
+        <field name="model">order.detail</field>
+        <field name="arch" type="xml">
+            <!-- Search With different Field -->
+            <search>
+                <field
+                    name="first_name"
+                    string="First Name"
+                    filter_domain="['|',('first_name','ilike',self),('last_name','ilike',self)]"
+                />
+                <filter
+                    name="filter_pending"
+                    string="Pending"
+                    domain="[('state', '=','pending')]"
+                />
+                <separator />
+                <filter
+                    name="filter_actepted"
+                    string="Actepted"
+                    domain="[('state','=','actepted')]"
+                />
+                <separator />
+                <filter
+                    name="filter_cancle"
+                    string="Cancle"
+                    domain="[('state','=','cancle')]"
+                />
+                <group expand="0" string="Group By">
+                    <filter
+                        string="State"
+                        name="group_by_state"
+                        context="{'group_by':'state'}"
+                    />
+                </group>
+                <!-- Search panel -->
+                <searchpanel>
+                    <field
+                        name="state"
+                        icon="fa-orders"
+                        select="multi"
+                        enable_counters="1"
+                    />
+                </searchpanel>
+            </search>
+        </field>
+    </record>
+
+</odoo>
+
+ChatGPT
+This XML file contains various configurations and definitions related to the "Order Detail" module in Odoo. Here's a breakdown of its contents:
+
+Automation Action: Defines an automation rule triggered on create for the order.detail model. It calls the action_rule_validate_create() method when an order is created and active in either "actepted" or "cancle" state.
+
+Schedule Action: Defines a scheduled action to create invoices. It calls the create_invoice() method periodically. In this case, it's set to run every day, and it calculates the next call to be ten days from the current date.
+
+Server Action to Create Invoice: Defines a server action named "Create Bills" that executes the create_invoice() method.
+
+Order Detail Tree View: Defines the tree view for the order.detail model, displaying fields like first name, last name, total, payment mode, and state.
+
+Sequence Number: Defines a sequence for generating order IDs.
+
+Order Detail Form View: Defines the form view for the order.detail model, displaying fields like first name, last name, total, payment mode, state, etc. It also includes a button to visit the company's website and an invisible field for is_paid.
+
+Order View: Defines an action to open the order details in tree and form view.
+
+Search View: Defines the search view for the order.detail model, allowing users to filter orders by various criteria such as first name, state, and group by state.
+
+This XML file is intended to be included in the module's data files and will be loaded when the module is installed or upgraded. It provides configuration settings and views for managing orders in the Order Detail module.
+
+User
+Add res config in this file
+ChatGPT
+To add a configuration view for the Order Detail module in the XML file, you can include a record for the ir.ui.view model. Here's how you can integrate it into the existing XML file:
+
+xml
+Copy code
+<odoo>
+
+    <!-- Other existing records -->
+
+    <!-- Configuration View -->
+    <record id="view_order_config_form" model="ir.ui.view">
+        <field name="name">order.detail.config.form</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('settings')]" position="inside">
+                <div class="app_settings_block" id="order_detail_config" string="Order Detail">
+                    <h2>Order Configuration</h2>
+                    <!-- Add your configuration fields here -->
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Other existing records -->
+
+</odoo>
+In this snippet:
+
+We've added a new record for the configuration view with the ID view_order_config_form.
+The model field is set to res.config.settings to indicate that this view is for configuration settings.
+We inherit the base configuration view using the inherit_id field.
+Inside the <xpath> tag, we position our configuration block inside the settings block.
+You can then add your configuration fields within the <div> element with the order_detail_config ID.
+Make sure to replace the comment <!-- Add your configuration fields here --> with the actual configuration fields you want to include for the Order Detail module.
+
+User
+add with logic and python logic
+ChatGPT
+To add configuration fields along with their logic and corresponding Python code, you'll need to define the fields in Python and then include the configuration view in XML. Here's how you can do it:
+
+Python Code (Python Logic):
+
+python
+Copy code
+from odoo import api, fields, models
+
+class ResConfigSettings(models.TransientModel):
+    _inherit = 'res.config.settings'
+
+    allowed_order_state = fields.Selection([
+        ('actepted', 'Accepted'),
+        ('cancle', 'Canceled'),
+    ], string='Allowed Order States', default='actepted')
+
+    @api.model
+    def get_values(self):
+        res = super(ResConfigSettings, self).get_values()
+        config_param = self.env['ir.config_parameter'].sudo()
+        res.update(
+            allowed_order_state=config_param.get_param('allowed_order_state', default='actepted'),
+        )
+        return res
+
+    def set_values(self):
+        super(ResConfigSettings, self).set_values()
+        config_param = self.env['ir.config_parameter'].sudo()
+        config_param.set_param('allowed_order_state', self.allowed_order_state)
+Explanation:
+
+We define a new field allowed_order_state in the res.config.settings model to store the allowed order states.
+The get_values method retrieves the current value of allowed_order_state from the system parameters.
+The set_values method sets the new value of allowed_order_state to the system parameters.
+XML Code (Configuration View):
+
+xml
+Copy code
+<odoo>
+
+    <!-- Configuration View -->
+    <record id="view_order_config_form" model="ir.ui.view">
+        <field name="name">order.detail.config.form</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('settings')]" position="inside">
+                <div class="app_settings_block" id="order_detail_config" string="Order Detail">
+                    <h2>Order Configuration</h2>
+                    <group>
+                        <field name="allowed_order_state"/>
+                    </group>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
+Explanation:
+
+We've added a new record for the configuration view with the ID view_order_config_form.
+Inside the <group> tag, we include the allowed_order_state field, which we defined in Python.
+This field will display a dropdown in the configuration form, allowing users to select the allowed order states.
+Make sure to adjust the logic and field names according to your specific requirements.
+
+User
+no plase using bollian fild and certificate 
+ChatGPT
+Certainly! Let's create a configuration for a boolean field and a certificate field.
+
+Python Code (Python Logic):
+
+python
+Copy code
+from odoo import api, fields, models
+
+class ResConfigSettings(models.TransientModel):
+    _inherit = 'res.config.settings'
+
+    enable_certificate = fields.Boolean(string='Enable Certificate', default=True)
+    certificate_template = fields.Binary(string='Certificate Template')
+
+    @api.model
+    def get_values(self):
+        res = super(ResConfigSettings, self).get_values()
+        config_param = self.env['ir.config_parameter'].sudo()
+        res.update(
+            enable_certificate=config_param.get_param('enable_certificate', default=True),
+            certificate_template=config_param.get_param('certificate_template'),
+        )
+        return res
+
+    def set_values(self):
+        super(ResConfigSettings, self).set_values()
+        config_param = self.env['ir.config_parameter'].sudo()
+        config_param.set_param('enable_certificate', self.enable_certificate)
+        config_param.set_param('certificate_template', self.certificate_template)
+Explanation:
+
+We define two new fields enable_certificate and certificate_template in the res.config.settings model to control the certificate functionality.
+The get_values method retrieves the current values of these fields from the system parameters.
+The set_values method sets the new values of these fields to the system parameters.
+XML Code (Configuration View):
+
+xml
+Copy code
+<odoo>
+    <!-- Configuration View -->
+    <record id="view_order_config_form" model="ir.ui.view">
+        <field name="name">order.detail.config.form</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('settings')]" position="inside">
+                <div class="app_settings_block" id="order_detail_config" string="Order Detail">
+                    <h2>Order Configuration</h2>
+                    <group>
+                        <field name="enable_certificate"/>
+                        <field name="certificate_template" filename="certificate_template" widget="binary" string="Certificate Template"/>
+                    </group>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>
+Explanation:
+
+We've added two fields to the configuration view:
+enable_certificate: A boolean field to enable or disable the certificate functionality.
+certificate_template: A binary field to upload the certificate template file.
+The filename, widget, and string attributes are set to customize the display of the certificate_template field.
+This configuration allows users to enable/disable certificate generation and upload a custom certificate template file. Adjust the field names and logic according to your specific requirements.
