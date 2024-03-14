@@ -2221,3 +2221,143 @@ enable_certificate: A boolean field to enable or disable the certificate functio
 certificate_template: A binary field to upload the certificate template file.
 The filename, widget, and string attributes are set to customize the display of the certificate_template field.
 This configuration allows users to enable/disable certificate generation and upload a custom certificate template file. Adjust the field names and logic according to your specific requirements.
+
+
+
+@api.constrains("option_1", "option_2", "option_3", "option_4")
+def _check_option(self):
+    """Ensure every option is different and not blank."""
+    for quiz_details in self:
+        options = [quiz_details.option_1, quiz_details.option_2, quiz_details.option_3, quiz_details.option_4]
+        non_empty_options = [option for option in options if option]
+        unique_options = set(non_empty_options)
+        if len(non_empty_options) < 2 or len(unique_options) < len(non_empty_options):
+            raise ValidationError(_("Options must be different and at least two options are required."))
+
+
+
+
+@api.constrains("option_1", "option_2", "option_3", "option_4")
+def _check_option(self):
+    """Ensure every option is different and not blank."""
+    for quiz_details in self:
+        options = [quiz_details.option_1, quiz_details.option_2, quiz_details.option_3, quiz_details.option_4]
+        non_empty_options = [option for option in options if option]
+        unique_options = set(non_empty_options)
+        if len(non_empty_options) < 2 or len(unique_options) < len(non_empty_options):
+            raise ValidationError(_("Options must be different and at least two options are required."))
+
+
+
+
+
+# Assuming you're inside a controller or a method where you have access to the 'self' environment
+
+# Example 1: Simple Search and Read
+orders = self.env['sale.order'].search_read([('partner_id', '=', partner_id)])
+
+# Example 2: Adding Fields to Read
+orders = self.env['sale.order'].search_read([('partner_id', '=', partner_id)], ['name', 'date_order', 'amount_total'])
+
+# Example 3: Using Domain and Limit
+orders = self.env['sale.order'].search_read([('partner_id', '=', partner_id)], limit=10)
+
+# Example 4: Using Domain with OR condition
+orders = self.env['sale.order'].search_read(['|', ('partner_id', '=', partner_id), ('state', '=', 'draft')])
+
+# Example 5: Using Domain with AND condition
+orders = self.env['sale.order'].search_read([('partner_id', '=', partner_id), ('state', '=', 'draft')])
+
+# Example 6: Sorting Results
+orders = self.env['sale.order'].search_read([('partner_id', '=', partner_id)], order='date_order desc')
+
+# Example 7: Using Offset
+orders = self.env['sale.order'].search_read([('partner_id', '=', partner_id)], offset=10, limit=5)
+
+
+from odoo import models, api
+
+class QuizQuestion(models.Model):
+    _name = "quiz.detail"
+    _description = "Quiz Detail"
+
+    # Your fields here...
+    question_length = fields.Integer(string="Question Length")
+
+    def write(self, vals):
+        """Override the write method to perform custom logic."""
+        # Example: perform some validation or processing for 'question'
+        if 'question' in vals:
+            if len(vals['question']) < 5:
+                raise ValueError("Question must be at least 5 characters long.")
+            vals['question_length'] = len(vals['question'])
+
+        # Example: perform some validation or processing for 'option_1'
+        if 'option_1' in vals:
+            if len(vals['option_1']) < 3:
+                raise ValueError("Option 1 must be at least 3 characters long.")
+
+        # Example: perform some validation or processing for 'time_limit'
+        if 'time_limit' in vals:
+            if vals['time_limit'] < 0:
+                raise ValueError("Time limit must be a positive integer.")
+
+        # Example: log the update
+        if 'question' in vals:
+            self.env['ir.logging'].create({
+                'name': 'Quiz Question Updated',
+                'message': f"Question {self.id} updated. New value: {vals['question']}",
+            })
+
+        # Example: you can add more conditions and custom logic for other fields
+
+        # Example: perform the actual write operation
+        return super(QuizQuestion, self).write(vals)
+from odoo import models, api
+
+class QuizQuestion(models.Model):
+    _name = "quiz.detail"
+    _description = "Quiz Detail"
+
+    # Define fields for QuizQuestion model
+
+class QuizResult(models.Model):
+    _name = "quiz.result"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _description = "Quiz Result"
+
+    # Define fields for QuizResult model
+
+    @api.model
+    def create_quiz_result(self, course_id, user_id, question_id, user_input):
+        """Create a quiz result record."""
+        # Fetch the question details
+        question = self.env['quiz.detail'].browse(question_id)
+        
+        # Check if the user's input matches the correct answer
+        if user_input.strip().lower() == question.right_answer.strip().lower():
+            total_right_answer = 1
+            total_wrong_answer = 0
+        else:
+            total_right_answer = 0
+            total_wrong_answer = 1
+        
+        # Calculate the percentage
+        total_questions = total_right_answer + total_wrong_answer
+        percentage = (total_right_answer / total_questions) * 100 if total_questions else 0.0
+        
+        # Create the quiz result record
+        result_vals = {
+            'course_id': course_id,
+            'user_id': user_id,
+            'question': question_id,
+            'user_input': user_input,
+            'right_answer': question.right_answer,
+            'total_right_answer': total_right_answer,
+            'total_wrong_answer': total_wrong_answer,
+            'percentage': percentage,
+        }
+        quiz_result = self.create(result_vals)
+        return quiz_result
+
+
